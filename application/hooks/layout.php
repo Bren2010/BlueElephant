@@ -38,9 +38,9 @@ class layout_hook
         $GLOBALS['layout'] = new Layout(
             $GLOBALS['maind'].'application/layouts/main.php'
         );
-        $GLOBALS['stylesheetUrl'] = '/hts/application/style/main/';
-        $GLOBALS['imagesUrl'] = '/hts/application/style/main/images/';
+        $GLOBALS['stylesheetUrl'] = $GLOBALS['baseURL'] . 'application/style/main/';
+        $GLOBALS['imagesUrl'] = $GLOBALS['baseURL'] . 'application/style/main/images/';
 
-        $GLOBALS['mainImagesUrl'] = '/hts/application/images/';
+        $GLOBALS['mainImagesUrl'] = $GLOBALS['baseURL'] . 'application/images/';
     }
 }

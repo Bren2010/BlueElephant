@@ -1,0 +1,23 @@
+@font-face {
+	font-family: bigmisterc;
+	src: url('bigmisterc.ttf');
+}
+
+body {
+	font-family: bigmisterc;
+	color: royalblue;
+	padding: 0;
+	margin: 0;
+}
+
+span.header {
+	font-size: 50px;
+}
+
+span.author {
+	font-size: 20px;
+}
+
+span.stat {
+	font-size: 30px;
+}
