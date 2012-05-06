@@ -31,61 +31,53 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *   Thetan ( Joseph Moniz )
 **/
 
-class View
+class Observer
 {
-    private $viewPath = '';
-    private $data = array();
-    private $parsed;
-    private $driver;
+    const EVENT_BASE = 'events_';
 
-    const VIEW_PATH     = '/application/views/';
-    const VIEW_EXT      = '.php';
-    const VIEW_SUFFIX   = '_view';
+    private static $instance;
+    private $events;
 
-    const DRIVER_PREFIX      = 'driver_';
-    const DRIVER_TRADITIONAL = 'traditional';
-
-    public function __construct($viewPath, $data = array(), $driver = self::DRIVER_TRADITIONAL)
+    // singleton
+    private function __construct($events = false)
     {
-        $this->viewPath = dirname(dirname(__FILE__)) . self::VIEW_PATH . 
-            Layout::getLayout() . '/' . $viewPath . self::VIEW_EXT;
-        
-        if (!file_exists($this->viewPath))
-            $this->viewPath = dirname(dirname(__FILE__)) . self::VIEW_PATH . 
-                'main/' . $viewPath . self::VIEW_EXT;
-
-        $this->driver = self::DRIVER_PREFIX . $driver . self::VIEW_SUFFIX;
-        if (!class_exists($this->driver)) die('Invalid driver.');
-        
-        $this->data = $data;
+        if (!$events) return;
+        $this->listen($events);
     }
 
-    // Wrapper for getting view variables
-    public function __get($name)
+    public static function singleton($events = false)
     {
-        return (isset($this->data[$name])) ? $this->data[$name] : false;
+        if (!isset(self::$instance))
+        {
+            $thisClass = __CLASS__;
+            self::$instance = new $thisClass($events);
+        }
+        return self::$instance;
     }
 
-    // Wrapper for setting view variables
-    public function __set($name, $value)
+    public function trigger($event, $data = null)
     {
-        $this->data[$name] = $value;
+        if (empty($this->events[$event])) return;
+        foreach ($this->events[$event] as $action)
+        {
+            $action::handler($data);
+        }
     }
 
-    // This function does the heavy lifting for the view.
-    public function render()
+    private function listen($events)
     {
-        if ($this->parsed) { return $this->parsed; }
-
-        $driver = $this->driver;
-
-        return $this->parsed = $driver::render($this->viewPath, $this->data);
-
+        foreach ($events as $x => $eventSet)
+        {
+            foreach ($eventSet as $event)
+            {
+                $event = str_replace('/', '_', $x . '/' . $event);
+                $this->events[$x][] = self::EVENT_BASE . $event;
+            }
+        }
     }
 
-    public function __toString()
+    public function __clone()
     {
-        return $this->render();
+        die("Error, can not be cloned");
     }
 }
-?>

@@ -1,4 +1,4 @@
-<?php 
+<?php
 /**
 Copyright (c) 2010, HackThisSite.org
 All rights reserved.
@@ -31,97 +31,118 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *   Thetan ( Joseph Moniz )
 **/
 
-$maind = getcwd().'/../';
-
-set_include_path(get_include_path() . PATH_SEPARATOR . $maind.'library');
+// add our library path to the include path
+set_include_path(
+    get_include_path() .
+    PATH_SEPARATOR .
+    dirname(dirname(__FILE__)) .
+    'library'
+);
 
 class lazyLoader
 {
+    const PREFIX            = "lazyLoaderStat:";
+    const PREFIX_MODEL      = "model:";
+    const PREFIX_CONTROLLER = "controller:";
+    const PREFIX_LIBRARY    = "library:";
+    const PREFIX_EVENT      = "events:";
+    const PREFIX_DRIVER     = "drivers:";
+
+    private $root;
+    private $cache = array();
     private static $instance;
 
-    private function __construct($hooks = false)
+    private function __construct()
     {
+        $this->root = dirname(dirname(__FILE__)) . '/';
+
         spl_autoload_register(null, false);
         spl_autoload_extensions('.php');
-        spl_autoload_register(array($this, 'model'));
-        // view loading is handled automatically by the view class
-        spl_autoload_register(array($this, 'controller'));
+        spl_autoload_register(array($this, 'cached'));
         spl_autoload_register(array($this, 'library'));
-        spl_autoload_register(array($this, 'hook'));
+        spl_autoload_register(array($this, 'model'));
+        spl_autoload_register(array($this, 'event'));
+        spl_autoload_register(array($this, 'controller'));
         spl_autoload_register(array($this, 'driver'));
+        
+        $this->cache = apc_fetch('lazyLoader_cache');
     }
-    
+	
+    public function cached($name)
+    {
+		if (!isset($this->cache[$name])) return false;
+        require $this->cache[$name];
+        return true;
+    }
+
     public function model($name)
     {
         if ($name[0] == strtoupper($name[0]))
             return false;
-        
-        $main = $GLOBALS['maind'];
-        $file = "{$main}application/models/{$name}.php";
+
+        $newName = strtolower($name);
+        $file = "{$this->root}application/models/{$newName}.php";
         if (!file_exists($file))
             return false;
-        
-        include $file;
+
+        $this->cache[$name] = $file;
+        require $file;
     }
-    
+
     public function controller($name)
     {
-        if (substr($name, -11) != '_controller')
+        if (strncmp($name, "controller_", 11) !== 0)
             return false;
+		
+        $newName = substr($name, 11);
+        $file = "{$this->root}application/controllers/{$newName}.php";
         
-        $main = $GLOBALS['maind'];
-        $name = substr($name, 0, -11);
-        $file = "{$main}application/controllers/{$name}.php";
-        if (!file_exists($file))
-            return false;
+        if (!file_exists($file)) return false;
         
-        include $file;
+        $this->cache[$name] = $file;
+        require $file;
     }
-    
+
     public function library($name)
     {
         if ($name[0] != strtoupper($name[0]))
             return false;
+		
+        $newName = strtolower($name);
+        $file = "{$this->root}library/{$newName}.php";
         
-        $name = strtolower($name);
-        $main = $GLOBALS['maind'];
-        $file = "{$main}library/{$name}.php";
         if (!file_exists($file))
             return false;
-            
-        include $file;
+
+		$this->cache[$name] = $file;
+        require $file;
     }
-    
-    public function hook($name)
+
+    public function event($name)
     {
-        if (substr($name, -5) != '_hook')
+        if (strncmp($name, 'events_', 7) !== 0)
             return false;
-        
-        $main = $GLOBALS['maind'];
-        $name = substr($name, 0, -5);
-        $file = "{$main}application/hooks/{$name}.php";
-        if (!file_exists($file))
-            return false;
-        
-        include $file;
+
+        $newName = str_replace("_", "/", $name);
+        $file = "{$this->root}application/{$newName}.php";
+
+		$this->cache[$name] = $file;
+        require $file;
     }
-    
+
     public function driver($name)
     {
-        if (substr($name, -7) != '_driver')
+        if (strncmp($name, "driver_", 7) !== 0)
             return false;
-            
-        list($name, $type) = explode('_', $name);
-        
-        $main = $GLOBALS['maind'];
-        $file = "{$main}drivers/{$type}/{$name}.php";
-        if (!file_exists($file))
-            return false;
-        
-        include $file;
+
+        $newName = substr($name, 7, -5);
+        $file = "{$this->root}drivers/{$newName}.php";
+
+		$this->cache[$name] = $file;
+        require $file;
     }
-    
-    public static function initialize($hooks = false) 
+
+    public static function initialize($hooks = false)
     {
         if (!isset(self::$instance))
         {
@@ -130,36 +151,34 @@ class lazyLoader
         }
         return self::$instance;
     }
-    
+
     public function __clone()
     {
         die('Error: Can not be cloned.');
     }
+    
+    public function __destruct() {
+		if (!empty($this->cache) && $this->cache != apc_fetch('lazyLoader_cache'))
+			apc_add('lazyLoader_cache', $this->cache);
+	}
 }
 
 lazyLoader::initialize();
 
-$hooks = HookHandler::singleton(
+$observer = Observer::singleton(
     array(
-        'ini' => array(
-            'baseURL',
-            'config',
-            'timer',
-            'layout',
+        'request/received' => array(
+            'startup',
             'dispatch'
         ),
-        'end' => array(
-            'layout_parse',
+        'request/ended' => array(
+            'shutdown'
         )
     )
 );
 
-// proccess request string
-if (!$_GET['r']) $_GET['r'] = 'index/index';
-$request = explode('/', $_GET['r']);
-$controller = array_shift($request);
 
+$observer->trigger("request/received");
 
-dispatch($controller, $request, false, true);
+$observer->trigger("request/ended");
 
-$hooks->runHooks('end');
