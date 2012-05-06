@@ -2,8 +2,8 @@
 class Cache {
 
     // Caching
-    // In order to have a function cached, set it to protected and prefix 
-    // the name with "get"
+    // In order to have a function cached, set it to protected and extend 
+    // this class if it's not already.
     public function __call($name, $arguments) {
         if (apc_exists($key = self::genCacheKey($name, $arguments)))
             return apc_fetch($key);
